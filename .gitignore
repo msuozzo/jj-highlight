@@ -1,0 +1,17 @@
+# Editor / IDE / OS scratch.
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+.DS_Store
+
+# Build output and local binaries.
+/bin/
+/dist/
+
+# Go tooling caches and local-only files.
+/vendor/
+coverage.out
+*.test
+*.prof
