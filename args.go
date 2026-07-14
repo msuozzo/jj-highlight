@@ -88,13 +88,13 @@ func tokenize(subcmd string, args []string) []argToken {
 
 // parsedArgs indexes a token stream for the queries the modes make.
 type parsedArgs struct {
-	val  map[string]string // value-flag spelling to its value
-	seen map[string]bool   // any flag spelling present
-	pos  []string          // positionals (everything after "--" is positional)
+	vals map[string][]string // value-flag spelling to its values, in arg order
+	seen map[string]bool     // any flag spelling present
+	pos  []string            // positionals (everything after "--" is positional)
 }
 
 func parseArgs(subcmd string, args []string) parsedArgs {
-	p := parsedArgs{val: map[string]string{}, seen: map[string]bool{}}
+	p := parsedArgs{vals: map[string][]string{}, seen: map[string]bool{}}
 	for _, t := range tokenize(subcmd, args) {
 		switch {
 		case t.pos:
@@ -103,7 +103,7 @@ func parseArgs(subcmd string, args []string) parsedArgs {
 		default:
 			p.seen[t.name] = true
 			if t.val != "" {
-				p.val[t.name] = t.val
+				p.vals[t.name] = append(p.vals[t.name], t.val)
 			}
 		}
 	}
@@ -113,11 +113,20 @@ func parseArgs(subcmd string, args []string) parsedArgs {
 // firstVal returns the value of the first present flag among names, or "".
 func (p parsedArgs) firstVal(names ...string) string {
 	for _, n := range names {
-		if v, ok := p.val[n]; ok {
-			return v
+		if vs := p.vals[n]; len(vs) > 0 {
+			return vs[0]
 		}
 	}
 	return ""
+}
+
+// allVals returns every value given for any of names, in order of occurrence.
+func (p parsedArgs) allVals(names ...string) []string {
+	var out []string
+	for _, n := range names {
+		out = append(out, p.vals[n]...)
+	}
+	return out
 }
 
 // has reports whether any of names is present.
@@ -151,10 +160,10 @@ func (p parsedArgs) fetchFlags() []string {
 	if v := p.firstVal("--at-operation", "--at-op"); v != "" {
 		out = append(out, "--at-operation", v)
 	}
-	if v := p.firstVal("--config"); v != "" {
+	for _, v := range p.allVals("--config") {
 		out = append(out, "--config", v)
 	}
-	if v := p.firstVal("--config-file"); v != "" {
+	for _, v := range p.allVals("--config-file") {
 		out = append(out, "--config-file", v)
 	}
 	return out
