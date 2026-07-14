@@ -67,10 +67,12 @@ func diffToolMode(args []string) {
 	// working copy, so it needs the raised file-size limit too (see
 	// ephemeralConfig).
 	cmd := exec.Command("jj", append(append([]string{}, ephemeralConfig...),
-		"diff", "-r", "@", "--color-words", "--color=always",
+		"diff", "-r", "@", "--color-words", "--color=debug",
 		"--config", `ui.diff-formatter=":color-words"`)...)
 	cmd.Dir = repo
-	cmd.Stderr = os.Stderr
+	// --color=debug also frames jj's warnings/errors on stderr; unwrap them.
+	errOut := &debugFilterWriter{w: os.Stderr}
+	cmd.Stderr = errOut
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("difftool: jj diff pipe: %v", err)
@@ -103,11 +105,13 @@ func diffToolMode(args []string) {
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+	werr := cmd.Wait()
+	errOut.flush()
+	if werr != nil {
+		if exitErr, ok := werr.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
-		log.Printf("difftool: jj diff: %v", err)
+		log.Printf("difftool: jj diff: %v", werr)
 	}
 }
 
