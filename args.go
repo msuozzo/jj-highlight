@@ -182,8 +182,10 @@ func (p parsedArgs) newRev(subcmd string) string {
 	if to := p.firstVal("-t", "--to"); to != "" {
 		return to
 	}
-	if r := p.firstVal("-r", "--revisions"); r != "" {
-		return r
+	if rs := p.allVals("-r", "--revisions"); len(rs) > 0 {
+		// NOTE: -r can take any number of revisions so try to resolve to the
+		// new rev. If multiple heads, we'll still fail and omit highlighting.
+		return "heads((" + strings.Join(rs, ")|(") + "))"
 	}
 	return "@"
 }
