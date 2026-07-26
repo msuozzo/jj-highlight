@@ -139,6 +139,7 @@ type Theme struct {
 	Field    Style
 	Emphasis Style // markdown *italic*
 	Strong   Style // markdown **bold**
+	Conflict Style // jj conflict markers, labels, and diff prefixes
 	Added    Style // wraps KNew spans (BG-only by default so the syntax FG shows through)
 	Removed  Style // replaces KOld styling entirely
 }
@@ -161,6 +162,8 @@ func (t Theme) styleFor(c tokenClass) Style {
 		return t.Emphasis
 	case cStrong:
 		return t.Strong
+	case cConflict:
+		return t.Conflict
 	}
 	return Style{}
 }
@@ -177,6 +180,7 @@ var defaultTheme = Theme{
 	Field:    Style{FG: "#afd7d7"},
 	Emphasis: Style{Italic: true},
 	Strong:   Style{Bold: true},
+	Conflict: Style{FG: "#888888"},
 	Added:    Style{BG: "#1e5a2d"},
 	Removed:  Style{FG: "#d75f5f", Underline: true},
 }
@@ -197,6 +201,7 @@ var defaultTheme = Theme{
 //	"syntax field"    = "blue"
 //	"syntax emphasis" = { italic = true }
 //	"syntax strong"   = { bold = true }
+//	"syntax conflict" = { fg = "bright black" }
 //	"syntax added"    = { bg = "#1e5a2d" }
 //	"syntax removed"  = { fg = "red", underline = true }
 //	"syntax gutter"   = { fg = "bright black", dim = true }
@@ -233,6 +238,8 @@ func applyOverrides(t Theme, m map[string]Style) Theme {
 			t.Emphasis = s
 		case "syntax strong":
 			t.Strong = s
+		case "syntax conflict":
+			t.Conflict = s
 		case "syntax added":
 			t.Added = s
 		case "syntax removed":

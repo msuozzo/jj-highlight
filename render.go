@@ -25,6 +25,7 @@ const (
 	cField
 	cEmphasis // markdown *italic* and _italic_
 	cStrong   // markdown **bold** and __bold__
+	cConflict // jj conflict markers, labels, and diff prefixes
 )
 
 // classifyContainer covers whole-range node types where we want the
@@ -281,7 +282,12 @@ func newHighlighter(path string, newSrc []byte) *Highlighter {
 	}
 	h.parser = ctor()
 	if newSrc != nil {
-		if root, err := h.parser.Parse(newSrc); err == nil {
+		// Materialized conflicts would wreck a direct parse (ERROR recovery
+		// plus junk tokens from the marker lines), so conflicted content is
+		// tokenized side-by-side instead. See conflict.go.
+		if lines, versions := scanConflicts(newSrc); lines != nil {
+			h.newToks = collectConflictTokens(h.parser, newSrc, lines, versions)
+		} else if root, err := h.parser.Parse(newSrc); err == nil {
 			h.newToks = collectTokens(root)
 		}
 		h.newLines = lineOffsets(newSrc)
@@ -377,7 +383,7 @@ func renderFile(w io.Writer, f *FileDiff, h *Highlighter, t Theme) {
 
 // renderLine writes one display line. newCol counts the new-side bytes
 // consumed so far for line.NewNo (KOld spans exist only on the old side and
-// don't advance it); it starts at startCol and the final value is returned
+// don't advance it). It starts at startCol and the final value is returned
 // for renderFile's cross-line carry.
 func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme, startCol int) int {
 	if line.Raw != "" {

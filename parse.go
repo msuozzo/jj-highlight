@@ -332,6 +332,20 @@ func parseHeader(plain string) *FileDiff {
 			}
 		}
 	}
+	// Conflicted files: "Created conflict in X:", "Modified conflict in X:",
+	// "Resolved conflict in X:" (same-path change), plus "Added conflict X:"
+	// and "Removed conflict X:" (file added/removed while conflicted).
+	for _, prefix := range []string{"Created conflict in ", "Modified conflict in ", "Resolved conflict in "} {
+		if strings.HasPrefix(body, prefix) {
+			return &FileDiff{Path: stripRenameSuffix(body[len(prefix):])}
+		}
+	}
+	for _, op := range []string{"Added", "Removed"} {
+		prefix := op + " conflict "
+		if strings.HasPrefix(body, prefix) {
+			return &FileDiff{Removed: op == "Removed", Path: stripRenameSuffix(body[len(prefix):])}
+		}
+	}
 	return nil
 }
 

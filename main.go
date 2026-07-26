@@ -143,9 +143,15 @@ func diffMode(subcmd string, jjArgs []string) {
 	// of how the user themed jj's diff colors. The git parser keys off
 	// +/-/space prefixes, so it just needs real color.
 	color := "--color=debug"
+	// Pin conflict rendering to "materialize" (jj >= 0.29 also offers "pair",
+	// whose per-side line numbers don't index the materialized contents that
+	// jj file show fetches; older jj ignores the unknown key). The pin comes
+	// before the forwarded args, so an explicit user --config still wins.
+	extra := []string{"--config", `diff.color-words.conflict="materialize"`}
 	if git {
 		format = "--git"
 		color = "--color=always"
+		extra = nil
 	}
 
 	// Only the new revision is needed: removed content renders as a flat
@@ -155,7 +161,8 @@ func diffMode(subcmd string, jjArgs []string) {
 	// color-words paths are cwd-relative (see jjFileset).
 	newRev := p.newRev(subcmd)
 
-	cmdArgs := append([]string{subcmd, color, format}, forwardArgs(subcmd, jjArgs)...)
+	cmdArgs := append([]string{subcmd, color, format}, extra...)
+	cmdArgs = append(cmdArgs, forwardArgs(subcmd, jjArgs)...)
 	cmd := exec.Command("jj", cmdArgs...)
 	// --color=debug also frames jj's warnings/errors on stderr, so unwrap them
 	// the same way (a no-op for the git path's --color=always).

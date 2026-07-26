@@ -48,6 +48,12 @@ Added and context bytes carry their syntax color, added bytes with a faded green
 
 File reads, parsing, and highlighting are asynchronous, so each paints as soon as its contents are ready.
 
+### Conflicted files
+
+Conflicted files are highlighted too. jj materializes an unresolved conflict into the file body with marker lines (`<<<<<<<`, `%%%%%%%`, `+++++++`, and so on), which no language grammar can parse. Instead of feeding the parser that broken text, `jj-highlight` detects the conflict structure and parses each side (and each base) as its own plausible resolution, then reassembles the tokens. Every content line inside a conflict keeps full syntax color -- the `+`/`-` lines of a diff section, snapshot bodies, and git-style sides alike.
+
+All of jj's `ui.conflict-marker-style` settings (`diff`, `snapshot`, `git`) are supported, in diffs, `file show`, and the diff-formatter alike.
+
 ## Custom themes
 
 Set syntax colors in your jj config. The defaults are:
@@ -62,6 +68,7 @@ Set syntax colors in your jj config. The defaults are:
 "syntax field"    = "blue"
 "syntax emphasis" = { italic = true }
 "syntax strong"   = { bold = true }
+"syntax conflict" = { fg = "bright black" }
 "syntax added"    = { bg = "#1e5a2d" }
 "syntax removed"  = { fg = "red", underline = true }
 "syntax gutter"   = { fg = "bright black", dim = true }
