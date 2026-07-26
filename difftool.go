@@ -169,7 +169,7 @@ func copyTree(src, dst string) {
 	})
 }
 
-// clearWorkingCopy removes every entry in dir except the .jj store, so the
+// clearWorkingCopy removes every entry in dir except the vcs store, so the
 // working copy can be repopulated with a different tree.
 func clearWorkingCopy(dir string) {
 	entries, err := os.ReadDir(dir)
@@ -177,7 +177,7 @@ func clearWorkingCopy(dir string) {
 		return
 	}
 	for _, e := range entries {
-		if e.Name() == ".jj" {
+		if e.Name() == ".jj" || e.Name() == ".git" {
 			continue
 		}
 		os.RemoveAll(filepath.Join(dir, e.Name()))
