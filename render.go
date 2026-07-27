@@ -287,15 +287,32 @@ func renderFile(w io.Writer, f *FileDiff, h *Highlighter, t Theme) {
 	if f.Header != "" {
 		fmt.Fprintln(w, f.Header)
 	}
+	// Color-words can split one new line across consecutive display lines:
+	// when a removed span crosses an old-line boundary, the next display
+	// line repeats the same new-side number and continues that new line
+	// where the previous one left off. Carry the consumed new-side column
+	// across those lines so token lookups stay aligned with the file.
+	lastNo, lastCol := 0, 0
 	for _, line := range f.Lines {
-		renderLine(w, line, h, t)
+		start := 0
+		if line.NewNo != 0 && line.NewNo == lastNo {
+			start = lastCol
+		}
+		end := renderLine(w, line, h, t, start)
+		if line.NewNo != 0 {
+			lastNo, lastCol = line.NewNo, end
+		}
 	}
 }
 
-func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme) {
+// renderLine writes one display line. newCol counts the new-side bytes
+// consumed so far for line.NewNo (KOld spans exist only on the old side and
+// don't advance it); it starts at startCol and the final value is returned
+// for renderFile's cross-line carry.
+func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme, startCol int) int {
 	if line.Raw != "" {
 		fmt.Fprintln(w, line.Raw)
-		return
+		return startCol
 	}
 
 	gutterStyle := t.Gutter
@@ -314,7 +331,7 @@ func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme) {
 	// highlighted, so only the new side is needed.
 	newBase := lineBase(h.newLines, line.NewNo)
 
-	var newCol int
+	newCol := startCol
 	for _, span := range line.Spans {
 		switch span.Kind {
 		case KOld:
@@ -336,6 +353,7 @@ func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme) {
 		}
 	}
 	io.WriteString(w, "\x1b[0m\n")
+	return newCol
 }
 
 // emitRemoved writes old-side bytes with the theme's Removed style and no
