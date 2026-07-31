@@ -14,5 +14,7 @@ github.com/msuozzo/bonsai/bonsai-markdown-inline v0.2.0 h1:qaJ5zBH7gAoxAX0CT3Lye
 github.com/msuozzo/bonsai/bonsai-markdown-inline v0.2.0/go.mod h1:aA/UoOBSckC3TRJEPg90XaioXcOCv/8GXAxR0AkHrEE=
 github.com/msuozzo/bonsai/bonsai-python v0.2.0 h1:z+z5vd/b9YOtD1mKV1VC7ygaez1TGBwhtnw6QAUs7/w=
 github.com/msuozzo/bonsai/bonsai-python v0.2.0/go.mod h1:JQ5zwyyTpqCcX48m5XvEgfhzkovt9zpZM4rABASmJdM=
+github.com/msuozzo/bonsai/bonsai-terraform v0.2.0 h1:aqS7H38x2wJ33mZxQaDPCg3I/yGIYSioPNFxLd0ZOT4=
+github.com/msuozzo/bonsai/bonsai-terraform v0.2.0/go.mod h1:e3G4OctHbVsU1sg5XpLget0IZoZTWPbIduOxLejj6BY=
 github.com/msuozzo/bonsai/bonsai-yaml v0.2.0 h1:dpUK7Ww5uu5AVQXixxdcL5Q9tLwqNJEyau2fc+LIn3o=
 github.com/msuozzo/bonsai/bonsai-yaml v0.2.0/go.mod h1:a+Tl28MC8bdfay6UHq+KQOaFOliw4h/0kN+j3f6sgwM=

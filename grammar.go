@@ -11,6 +11,7 @@ import (
 	bonsaigotemplate "github.com/msuozzo/bonsai/bonsai-gotemplate"
 	bonsaimarkdown "github.com/msuozzo/bonsai/bonsai-markdown"
 	bonsaipython "github.com/msuozzo/bonsai/bonsai-python"
+	bonsaiterraform "github.com/msuozzo/bonsai/bonsai-terraform"
 	bonsaiyaml "github.com/msuozzo/bonsai/bonsai-yaml"
 )
 
@@ -44,6 +45,8 @@ func parserConstructor(path string) func() *bonsai.Parser {
 		return bonsaibash.NewParser
 	case ".tmpl", ".gotmpl", ".gohtml":
 		return bonsaigotemplate.NewParser
+	case ".tf", ".tfvars", ".hcl":
+		return bonsaiterraform.NewParser
 	}
 	return nil
 }

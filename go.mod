@@ -13,4 +13,7 @@ require (
 	github.com/msuozzo/bonsai/bonsai-yaml v0.2.0
 )
 
-require github.com/msuozzo/bonsai/bonsai-markdown-inline v0.2.0 // indirect
+require (
+	github.com/msuozzo/bonsai/bonsai-markdown-inline v0.2.0 // indirect
+	github.com/msuozzo/bonsai/bonsai-terraform v0.2.0
+)

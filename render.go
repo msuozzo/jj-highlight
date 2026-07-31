@@ -41,7 +41,7 @@ func classifyContainer(typ string, named bool) tokenClass {
 	// Strings.
 	case "string", "string_literal", "raw_string_literal",
 		"interpreted_string_literal", "byte_string_literal",
-		"rune_literal", "concatenated_string":
+		"rune_literal", "concatenated_string", "string_lit":
 		return cString
 	// Comments.
 	case "comment", "line_comment", "block_comment":
@@ -99,6 +99,14 @@ func classifyContainer(typ string, named bool) tokenClass {
 		return cField
 	case "command_name":
 		return cType
+	// Terraform/HCL. quoted_template (an interpolated string) is
+	// deliberately absent so `${...}` keeps expression coloring. bool_lit
+	// wraps an anonymous true/false that would otherwise classify as a
+	// keyword.
+	case "heredoc_start":
+		return cString
+	case "bool_lit", "null_lit":
+		return cNumber
 	}
 	if strings.HasSuffix(typ, "_string") || strings.HasSuffix(typ, "_string_literal") {
 		return cString
@@ -165,6 +173,17 @@ func classify(typ string, named bool) tokenClass {
 		return cField
 	case "test_operator":
 		return cKeyword
+	// Terraform/HCL leaves, reached inside interpolated strings and
+	// heredocs. The `${`/`%{`/`}` frames get field color so embedded
+	// expressions pop out of the surrounding string.
+	case "template_literal", "quoted_template_start", "quoted_template_end",
+		"heredoc_identifier":
+		return cString
+	case "template_interpolation_start", "template_interpolation_end",
+		"template_directive_start", "template_directive_end":
+		return cField
+	case "numeric_lit":
+		return cNumber
 	}
 	if strings.Contains(typ, "integer") || strings.Contains(typ, "int_literal") ||
 		strings.Contains(typ, "float_literal") || typ == "float" || typ == "number" {
@@ -181,6 +200,62 @@ func isAllAlpha(s string) bool {
 		}
 	}
 	return true
+}
+
+// classifyContext classifies nodes whose color depends on their position
+// in the tree, not the node type alone. A non-cNone result means "emit
+// one token for the whole range and skip the children." Checked before
+// classifyContainer so structural rules win over type-name rules.
+func classifyContext(n *bonsai.Node) tokenClass {
+	if !n.Named {
+		return cNone
+	}
+	parentIs := func(typ string) bool { return n.Parent != nil && n.Parent.Type == typ }
+	switch n.Type {
+	// YAML plain_scalar: the block grammar uses it for both keys
+	// and values (and for sequence elements, top-level scalars,
+	// etc.). The parent flow_node carries Field == "key" only for
+	// the key half of a block_mapping_pair. Anything else is a
+	// value and reads like a string.
+	case "plain_scalar":
+		if n.Parent == nil || n.Parent.Field != "key" {
+			return cString
+		}
+	// Terraform/HCL uses one identifier node for block types, attribute
+	// names, and function names. The Field == "" guard keeps this off
+	// other grammars (Python attribute children always carry fields).
+	case "identifier":
+		if n.Field != "" {
+			return cNone
+		}
+		switch {
+		case parentIs("block"):
+			return cKeyword
+		case parentIs("attribute"):
+			return cField
+		case parentIs("function_call"):
+			return cType
+		}
+	// HCL block labels: the first names a type (`resource
+	// "aws_s3_bucket" "b"`), later ones fall through to plain string.
+	case "string_lit":
+		if parentIs("block") {
+			for _, c := range n.Parent.Children {
+				if c.Type == "string_lit" {
+					if c == n {
+						return cType
+					}
+					break
+				}
+			}
+		}
+	// HCL object keys ({ env = ... }) match the attribute-name color.
+	case "expression":
+		if n.Field == "key" && parentIs("object_elem") {
+			return cField
+		}
+	}
+	return cNone
 }
 
 // --- highlighter -----------------------------------------------------------
@@ -222,13 +297,8 @@ func collectTokens(root *bonsai.Node) []token {
 	var toks []token
 	var visit func(n *bonsai.Node)
 	visit = func(n *bonsai.Node) {
-		// YAML plain_scalar: the block grammar uses it for both keys
-		// and values (and for sequence elements, top-level scalars,
-		// etc.). The parent flow_node carries Field == "key" only for
-		// the key half of a block_mapping_pair. Anything else is a
-		// value and reads like a string.
-		if n.Named && n.Type == "plain_scalar" && (n.Parent == nil || n.Parent.Field != "key") {
-			toks = append(toks, token{n.StartByte, n.EndByte, cString})
+		if c := classifyContext(n); c != cNone {
+			toks = append(toks, token{n.StartByte, n.EndByte, c})
 			return
 		}
 		// Whole-range container? Emit once for the full node and skip
