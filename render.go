@@ -26,6 +26,8 @@ const (
 	cEmphasis // markdown *italic* and _italic_
 	cStrong   // markdown **bold** and __bold__
 	cConflict // jj conflict markers, labels, and diff prefixes
+	cTodo     // TODO / NOTE label opening a comment
+	cFixme    // FIXME / XXX / HACK / BUG label opening a comment
 )
 
 // classifyContainer covers whole-range node types where we want the
@@ -288,7 +290,7 @@ func newHighlighter(path string, newSrc []byte) *Highlighter {
 		if lines, versions := scanConflicts(newSrc); lines != nil {
 			h.newToks = collectConflictTokens(h.parser, newSrc, lines, versions)
 		} else if root, err := h.parser.Parse(newSrc); err == nil {
-			h.newToks = collectTokens(root)
+			h.newToks = collectTokens(root, newSrc)
 		}
 		h.newLines = lineOffsets(newSrc)
 	}
@@ -299,7 +301,7 @@ func newHighlighter(path string, newSrc []byte) *Highlighter {
 // overlapping list of (byte range, class) tokens. Injection (e.g.
 // markdown's block-and-inline split) has already been resolved by
 // bonsai, so this function sees one unified tree.
-func collectTokens(root *bonsai.Node) []token {
+func collectTokens(root *bonsai.Node, src []byte) []token {
 	var toks []token
 	var visit func(n *bonsai.Node)
 	visit = func(n *bonsai.Node) {
@@ -311,6 +313,12 @@ func collectTokens(root *bonsai.Node) []token {
 		// descent. This is how strings keep their quotes colored and
 		// block comments stay solid across multiple lines.
 		if c := classifyContainer(n.Type, n.Named); c != cNone {
+			// A comment opening with TODO, FIXME, and friends splits so the
+			// label colors apart from the message. See comment.go.
+			if c == cComment {
+				toks = append(toks, splitCommentMarkers(src, n.StartByte, n.EndByte)...)
+				return
+			}
 			toks = append(toks, token{n.StartByte, n.EndByte, c})
 			return
 		}
@@ -447,11 +455,12 @@ func emitRemoved(w io.Writer, text string, t Theme) {
 // or toks == nil signals "no parse context", and we emit plain text
 // with just the wrap applied.
 //
-// Composability note: wrap should set BG only and per-class styles
-// should set FG only. A per-class Reset emits \x1b[39m which doesn't
-// disturb the BG. If wrap also set FG the wrap-FG would be lost at
-// the first per-class transition. The default theme honors this.
-// Custom themes mixing FG+BG on the Added key may show artifacts.
+// Composability note: wrap should set BG only, and per-class styles should
+// leave BG alone (FG and attributes are both fine). A per-class Reset emits
+// only \x1b[39m and the attribute resets, none of which disturb the BG. If
+// wrap also set FG the wrap-FG would be lost at the first per-class
+// transition. The default theme honors this. Custom themes mixing FG+BG on
+// the Added key, or setting BG on a per-class key, may show artifacts.
 func emitHighlighted(w io.Writer, text string, toks []token, base int, t Theme, wrap Style) {
 	if !wrap.Empty() {
 		io.WriteString(w, wrap.ANSI())

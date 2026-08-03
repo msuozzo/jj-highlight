@@ -315,7 +315,10 @@ func collectConflictTokens(parser *bonsai.Parser, src []byte, lines []conflictLi
 		if err != nil {
 			continue
 		}
-		for _, tk := range collectTokens(root) {
+		// Blanking only erases lines this version does not see, and those
+		// tokens get filtered out below, so comment bodies that survive are
+		// still intact for marker detection.
+		for _, tk := range collectTokens(root, blanked) {
 			li := lineIndexAt(lines, tk.start)
 			if li < 0 || lines[li].canonical != v {
 				continue
