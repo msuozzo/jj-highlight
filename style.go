@@ -180,7 +180,7 @@ var defaultTheme = Theme{
 	Field:    Style{FG: "#afd7d7"},
 	Emphasis: Style{Italic: true},
 	Strong:   Style{Bold: true},
-	Conflict: Style{FG: "#888888"},
+	Conflict: Style{FG: "#888888", Reverse: true},
 	Added:    Style{BG: "#1e5a2d"},
 	Removed:  Style{FG: "#d75f5f", Underline: true},
 }
