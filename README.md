@@ -64,8 +64,8 @@ Set syntax colors in your jj config. The defaults are:
 "syntax string"   = { fg = "#76b078" }
 "syntax number"   = "yellow"
 "syntax comment"  = { fg = "bright black", italic = true }
-"syntax todo"     = { fg = "#ffd75f", bold = true }
-"syntax fixme"    = { fg = "#ff5f5f", bold = true }
+"syntax todo"     = { fg = "#bcbcbc", bold = true }
+"syntax fixme"    = { fg = "#ffd75f", bold = true }
 "syntax type"     = "cyan"
 "syntax field"    = "blue"
 "syntax emphasis" = { italic = true }

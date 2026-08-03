@@ -179,8 +179,8 @@ func (t Theme) styleFor(c tokenClass) Style {
 var defaultTheme = Theme{
 	Gutter:   Style{FG: "#888888", Dim: true},
 	Comment:  Style{FG: "#888888"},
-	Todo:     Style{FG: "#ffd75f", Bold: true},
-	Fixme:    Style{FG: "#ff5f5f", Bold: true},
+	Todo:     Style{FG: "#bcbcbc", Bold: true},
+	Fixme:    Style{FG: "#ffd75f", Bold: true},
 	String:   Style{FG: "#87af87"},
 	Number:   Style{FG: "#d7af87"},
 	Keyword:  Style{FG: "#d787d7"},
@@ -205,8 +205,8 @@ var defaultTheme = Theme{
 //	"syntax string"   = { fg = "#76b078" }
 //	"syntax number"   = "yellow"
 //	"syntax comment"  = { fg = "bright black", italic = true }
-//	"syntax todo"     = { fg = "#ffd75f", bold = true }
-//	"syntax fixme"    = { fg = "#ff5f5f", bold = true }
+//	"syntax todo"     = { fg = "#bcbcbc", bold = true }
+//	"syntax fixme"    = { fg = "#ffd75f", bold = true }
 //	"syntax type"     = "cyan"
 //	"syntax field"    = "blue"
 //	"syntax emphasis" = { italic = true }
