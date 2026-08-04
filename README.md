@@ -91,17 +91,27 @@ Color values accept jj's notation: named colors (`red`, `bright red`, `default`)
 
 ## Supported languages
 
-| Language     | Files / extensions                            |
-| ------------ | --------------------------------------------- |
-| Go           | `.go`                                         |
-| Python       | `.py`                                         |
-| Markdown     | `.md`, `.markdown`                            |
-| YAML         | `.yaml`, `.yml`                               |
-| Dockerfile   | `Dockerfile`, `Containerfile`, `*.dockerfile` |
-| Bash         | `.sh`, `.bash`, `.zsh`                        |
-| Go templates | `.tmpl`, `.gotmpl`, `.gohtml`                 |
+| Language        | Files / extensions                                                        |
+| --------------- | ------------------------------------------------------------------------- |
+| Bash            | `.sh`, `.bash`, `.zsh`                                                    |
+| C               | `.c`, `.h`                                                                |
+| Dockerfile      | `Dockerfile`, `Containerfile`, `*.dockerfile`                             |
+| Go              | `.go`                                                                     |
+| Go templates    | `.tmpl`, `.gotmpl`, `.gohtml`                                             |
+| Java            | `.java`                                                                   |
+| JavaScript      | `.js`, `.mjs`, `.cjs`, `.jsx`                                             |
+| Markdown        | `.md`, `.markdown`                                                        |
+| Python          | `.py`                                                                     |
+| Ruby            | `.rb`, `.rake`, `.gemspec`, `.ru`, `Gemfile`, `Rakefile`, `Podfile`, `Brewfile` |
+| Rust            | `.rs`                                                                     |
+| Terraform / HCL | `.tf`, `.tfvars`, `.hcl`                                                  |
+| TypeScript      | `.ts`, `.mts`, `.cts`                                                     |
+| TSX             | `.tsx`                                                                    |
+| YAML            | `.yaml`, `.yml`                                                           |
 
 Markdown wires up both the block and inline grammars, so structure and inline content (links, code spans, emphasis) are tokenized together. Dockerfile uses a similar composition for shell code inside `RUN`, `CMD`, and `ENTRYPOINT`, so a step like `RUN go build -o myapp ./...` shows the dockerfile keywords and the bash command in their respective colors. Other extensions render with diff colors only.
+
+Two dispatch choices are worth naming: `.jsx` goes to the JavaScript grammar, which covers JSX on its own, so only `.tsx` needs the separate TSX dialect. And `.h` goes to C, since C headers outnumber C++ ones and there is no C++ grammar to fall back on. C++ sources (`.cc`, `.cpp`) are left uncolored rather than parsed by a grammar that would reject their templates and namespaces.
 
 ## Pager
 

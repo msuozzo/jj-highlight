@@ -41,10 +41,13 @@ func classifyContainer(typ string, named bool) tokenClass {
 		return cNone
 	}
 	switch typ {
-	// Strings.
+	// Strings. Character literals are containers rather than leaves so
+	// the quotes stay colored with the character (C's inner `character`
+	// leaf, Rust's `char_literal`, Java's `character_literal`).
 	case "string", "string_literal", "raw_string_literal",
 		"interpreted_string_literal", "byte_string_literal",
-		"rune_literal", "concatenated_string", "string_lit":
+		"rune_literal", "concatenated_string", "string_lit",
+		"char_literal", "character_literal":
 		return cString
 	// Comments.
 	case "comment", "line_comment", "block_comment":
@@ -110,6 +113,13 @@ func classifyContainer(typ string, named bool) tokenClass {
 		return cString
 	case "bool_lit", "null_lit":
 		return cNumber
+	// Builtin types in Java and TypeScript. These wrap an anonymous
+	// token, so without a container rule they would fall to the
+	// all-letter keyword path instead of matching the type color that
+	// C and Rust primitives get.
+	case "void_type", "integral_type", "floating_point_type",
+		"boolean_type", "predefined_type":
+		return cType
 	}
 	if strings.HasSuffix(typ, "_string") || strings.HasSuffix(typ, "_string_literal") {
 		return cString
@@ -126,7 +136,10 @@ func classifyContainer(typ string, named bool) tokenClass {
 // `RUN`) without per-language enumeration.
 func classify(typ string, named bool) tokenClass {
 	if !named {
-		if len(typ) >= 2 && isAllAlpha(typ) {
+		// C spells its preprocessor directives `#include`, `#define`,
+		// and so on. Every other grammar's `#` token is punctuation
+		// followed by a non-letter, so it still falls through.
+		if t := strings.TrimPrefix(typ, "#"); len(t) >= 2 && isAllAlpha(t) {
 			return cKeyword
 		}
 		return cNone
@@ -187,6 +200,29 @@ func classify(typ string, named bool) tokenClass {
 		return cField
 	case "numeric_lit":
 		return cNumber
+	// C, Kotlin, and Groovy spell their numbers this way, which the
+	// substring fallback below doesn't reach.
+	case "number_literal":
+		return cNumber
+	// The receiver keywords parse as named nodes, so the anonymous
+	// all-letter keyword path never sees them.
+	case "this", "self", "super", "mutable_specifier":
+		return cKeyword
+	// JavaScript / TypeScript / TSX member names, matching Go's
+	// field_identifier. Covers member access, class members, object
+	// literal keys, and JSX attribute names.
+	case "property_identifier", "private_property_identifier",
+		"shorthand_property_identifier", "shorthand_property_identifier_pattern":
+		return cField
+	// Ruby. Constants (which include class and module names) read as
+	// types; the sigil variables and hash keys read as fields. A symbol
+	// is an interned string literal, so it takes the string color.
+	case "constant":
+		return cType
+	case "instance_variable", "class_variable", "global_variable", "hash_key_symbol":
+		return cField
+	case "simple_symbol", "delimited_symbol":
+		return cString
 	}
 	if strings.Contains(typ, "integer") || strings.Contains(typ, "int_literal") ||
 		strings.Contains(typ, "float_literal") || typ == "float" || typ == "number" {
@@ -225,19 +261,39 @@ func classifyContext(n *bonsai.Node) tokenClass {
 			return cString
 		}
 	// Terraform/HCL uses one identifier node for block types, attribute
-	// names, and function names. The Field == "" guard keeps this off
-	// other grammars (Python attribute children always carry fields).
+	// names, and function names, so position decides the color. The
+	// rules below it cover the other grammars that reuse the bare
+	// identifier node for a named role.
 	case "identifier":
+		switch {
+		// Java, JavaScript, and Python type declarations, matching Go's
+		// type_identifier.
+		case n.Field == "name" && (parentIs("class_declaration") ||
+			parentIs("class_definition")):
+			return cType
+		// Ruby is method calls all the way down, so only receiverless
+		// ones get the color. That covers DSL verbs (`gem`, `task`,
+		// `attr_reader`) while leaving `foo.bar.baz` chains alone.
+		case n.Field == "method" && parentIs("call") &&
+			n.Parent.ChildByField("receiver") == nil:
+			return cType
+		}
 		if n.Field != "" {
 			return cNone
 		}
 		switch {
 		case parentIs("block"):
 			return cKeyword
-		case parentIs("attribute"):
-			return cField
 		case parentIs("function_call"):
 			return cType
+		// Rust names the inside of `#[...]` an `attribute` too, so the
+		// HCL rule needs the grandparent to tell them apart. Rust
+		// attribute names stay default, like Python decorators.
+		case parentIs("attribute"):
+			if gp := n.Parent.Parent; gp != nil && gp.Type == "attribute_item" {
+				return cNone
+			}
+			return cField
 		}
 	// HCL block labels: the first names a type (`resource
 	// "aws_s3_bucket" "b"`), later ones fall through to plain string.

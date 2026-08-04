@@ -6,12 +6,19 @@ import (
 
 	"github.com/msuozzo/bonsai"
 	bonsaibash "github.com/msuozzo/bonsai/bonsai-bash"
+	bonsaic "github.com/msuozzo/bonsai/bonsai-c"
 	bonsaidockerfile "github.com/msuozzo/bonsai/bonsai-dockerfile"
 	bonsaigo "github.com/msuozzo/bonsai/bonsai-go"
 	bonsaigotemplate "github.com/msuozzo/bonsai/bonsai-gotemplate"
+	bonsaijava "github.com/msuozzo/bonsai/bonsai-java"
+	bonsaijavascript "github.com/msuozzo/bonsai/bonsai-javascript"
 	bonsaimarkdown "github.com/msuozzo/bonsai/bonsai-markdown"
 	bonsaipython "github.com/msuozzo/bonsai/bonsai-python"
+	bonsairuby "github.com/msuozzo/bonsai/bonsai-ruby"
+	bonsairust "github.com/msuozzo/bonsai/bonsai-rust"
 	bonsaiterraform "github.com/msuozzo/bonsai/bonsai-terraform"
+	bonsaitsx "github.com/msuozzo/bonsai/bonsai-tsx"
+	bonsaitypescript "github.com/msuozzo/bonsai/bonsai-typescript"
 	bonsaiyaml "github.com/msuozzo/bonsai/bonsai-yaml"
 )
 
@@ -27,6 +34,8 @@ func parserConstructor(path string) func() *bonsai.Parser {
 		base == "containerfile",
 		strings.HasPrefix(base, "dockerfile."):
 		return newDockerfileWithBash
+	case base == "gemfile", base == "rakefile", base == "podfile", base == "brewfile":
+		return bonsairuby.NewParser
 	}
 
 	switch strings.ToLower(filepath.Ext(path)) {
@@ -47,6 +56,25 @@ func parserConstructor(path string) func() *bonsai.Parser {
 		return bonsaigotemplate.NewParser
 	case ".tf", ".tfvars", ".hcl":
 		return bonsaiterraform.NewParser
+	case ".rs":
+		return bonsairust.NewParser
+	case ".java":
+		return bonsaijava.NewParser
+	case ".rb", ".rake", ".gemspec", ".ru":
+		return bonsairuby.NewParser
+	// The JavaScript grammar covers JSX, so .jsx routes here rather than
+	// to the tsx dialect.
+	case ".js", ".mjs", ".cjs", ".jsx":
+		return bonsaijavascript.NewParser
+	case ".ts", ".mts", ".cts":
+		return bonsaitypescript.NewParser
+	case ".tsx":
+		return bonsaitsx.NewParser
+	// C only: the grammar rejects enough C++ (templates, namespaces) that
+	// .cc/.cpp would parse worse than staying uncolored. .h is claimed
+	// anyway since C headers outnumber C++ ones in practice.
+	case ".c", ".h":
+		return bonsaic.NewParser
 	}
 	return nil
 }
