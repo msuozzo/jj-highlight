@@ -50,6 +50,48 @@ func TestTerraformTokenClasses(t *testing.T) {
 	}
 }
 
+// Old-side-only marker lines take the Conflict style while the new side
+// is still conflicted. Removed content, resolved conflicts, and files
+// that were never conflicted keep the plain Removed style.
+func TestOldSideConflictMarkersStyledAsConflict(t *testing.T) {
+	oldOnly := func(spans ...*Span) *DiffLine {
+		return &DiffLine{Gutter: "   5     : ", Spans: spans}
+	}
+	lines := []*DiffLine{
+		oldOnly(&Span{Text: `+++++++ xxvxtqpr f2db07e2 "side1"`, Kind: KOld}),
+		// One label line word-split into several removed spans.
+		oldOnly(
+			&Span{Text: `\\\\\\\        to: `, Kind: KOld},
+			&Span{Text: "qtxnwkqs", Kind: KOld},
+			&Span{Text: ` "A"`, Kind: KOld},
+		),
+		oldOnly(&Span{Text: "\tx := 100", Kind: KOld}), // content, not a marker
+	}
+	f := &FileDiff{Path: "x.go", Header: "Modified conflict in x.go:", Lines: lines}
+	stillConflicted := []byte("<<<<<<<\n+++++++ s\nx := 2\n>>>>>>>\n")
+	var buf bytes.Buffer
+	renderFile(&buf, f, newHighlighter("x.go", stillConflicted), defaultTheme)
+	got := strings.Split(buf.String(), "\n")
+	conflict := defaultTheme.ConflictRemoved.ANSI() + defaultTheme.Conflict.ANSI()
+	for i, want := range []bool{true, true, false} {
+		if strings.Contains(got[i+1], conflict) != want {
+			t.Errorf("line %d conflict-styled = %v, want %v: %q", i, !want, want, got[i+1])
+		}
+	}
+
+	for path, hdr := range map[string]string{
+		"x.go": "Resolved conflict in x.go:",
+		"x.md": "Modified regular file x.md:",
+	} {
+		f = &FileDiff{Path: path, Header: hdr, Lines: lines[:1]}
+		buf.Reset()
+		renderFile(&buf, f, newHighlighter(path, nil), defaultTheme)
+		if strings.Contains(buf.String(), defaultTheme.Conflict.ANSI()) {
+			t.Errorf("%q should keep the removed style: %q", hdr, buf.String())
+		}
+	}
+}
+
 // jj's color-words output can split one new line across consecutive display
 // lines: when a removed span crosses an old-line boundary, the next display
 // line repeats the same new-side number and continues the new line where the

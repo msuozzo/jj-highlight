@@ -130,20 +130,21 @@ func hexColorANSI(hex string, fg bool) string {
 // Theme is the resolved palette used during render. Defaults come
 // from defaultTheme. jj's color config overrides any key we recognize.
 type Theme struct {
-	Gutter   Style
-	Comment  Style
-	Todo     Style // TODO / NOTE label opening a comment
-	Fixme    Style // FIXME / XXX / HACK / BUG label opening a comment
-	String   Style
-	Number   Style
-	Keyword  Style
-	Type     Style
-	Field    Style
-	Emphasis Style // markdown *italic*
-	Strong   Style // markdown **bold**
-	Conflict Style // jj conflict markers, labels, and diff prefixes
-	Added    Style // wraps KNew spans (BG-only by default so the syntax FG shows through)
-	Removed  Style // replaces KOld styling entirely
+	Gutter          Style
+	Comment         Style
+	Todo            Style // TODO / NOTE label opening a comment
+	Fixme           Style // FIXME / XXX / HACK / BUG label opening a comment
+	String          Style
+	Number          Style
+	Keyword         Style
+	Type            Style
+	Field           Style
+	Emphasis        Style // markdown *italic*
+	Strong          Style // markdown **bold**
+	Conflict        Style // jj conflict markers, labels, and diff prefixes
+	ConflictRemoved Style // wraps old-side-only marker lines under the Conflict style
+	Added           Style // wraps KNew spans (BG-only by default so the syntax FG shows through)
+	Removed         Style // replaces KOld styling entirely
 }
 
 func (t Theme) styleFor(c tokenClass) Style {
@@ -177,20 +178,21 @@ func (t Theme) styleFor(c tokenClass) Style {
 // defaultTheme is the baked-in palette used when jj config is absent
 // or doesn't set our keys.
 var defaultTheme = Theme{
-	Gutter:   Style{FG: "#888888", Dim: true},
-	Comment:  Style{FG: "#888888"},
-	Todo:     Style{FG: "#bcbcbc", Bold: true},
-	Fixme:    Style{FG: "#ffd75f", Bold: true},
-	String:   Style{FG: "#87af87"},
-	Number:   Style{FG: "#d7af87"},
-	Keyword:  Style{FG: "#d787d7"},
-	Type:     Style{FG: "#87afff"},
-	Field:    Style{FG: "#afd7d7"},
-	Emphasis: Style{Italic: true},
-	Strong:   Style{Bold: true},
-	Conflict: Style{FG: "#888888", Reverse: true},
-	Added:    Style{BG: "#1e5a2d"},
-	Removed:  Style{FG: "#d75f5f", Underline: true},
+	Gutter:          Style{FG: "#888888", Dim: true},
+	Comment:         Style{FG: "#888888"},
+	Todo:            Style{FG: "#bcbcbc", Bold: true},
+	Fixme:           Style{FG: "#ffd75f", Bold: true},
+	String:          Style{FG: "#87af87"},
+	Number:          Style{FG: "#d7af87"},
+	Keyword:         Style{FG: "#d787d7"},
+	Type:            Style{FG: "#87afff"},
+	Field:           Style{FG: "#afd7d7"},
+	Emphasis:        Style{Italic: true},
+	Strong:          Style{Bold: true},
+	Conflict:        Style{FG: "#888888", Reverse: true},
+	ConflictRemoved: Style{BG: "#5a1e1e"},
+	Added:           Style{BG: "#1e5a2d"},
+	Removed:         Style{FG: "#d75f5f", Underline: true},
 }
 
 // loadTheme runs `jj config list --include-defaults colors` and merges
@@ -212,6 +214,7 @@ var defaultTheme = Theme{
 //	"syntax emphasis" = { italic = true }
 //	"syntax strong"   = { bold = true }
 //	"syntax conflict" = { fg = "bright black" }
+//	"syntax conflict removed" = { bg = "#5a1e1e" }
 //	"syntax added"    = { bg = "#1e5a2d" }
 //	"syntax removed"  = { fg = "red", underline = true }
 //	"syntax gutter"   = { fg = "bright black", dim = true }
@@ -254,6 +257,8 @@ func applyOverrides(t Theme, m map[string]Style) Theme {
 			t.Strong = s
 		case "syntax conflict":
 			t.Conflict = s
+		case "syntax conflict removed":
+			t.ConflictRemoved = s
 		case "syntax added":
 			t.Added = s
 		case "syntax removed":

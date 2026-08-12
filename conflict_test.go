@@ -261,7 +261,7 @@ func TestConflictTokensGo(t *testing.T) {
 		{`"Howdy, "`, cString},
 		{`"Hello there, "`, cString},
 		{`"!"`, cString},
-		// Markers, labels, and diff prefixes are conflict apparatus. The
+		// Markers, labels, and diff prefixes take the fixed conflict color. The
 		// commit ids and descriptions on label lines must NOT leak through
 		// as number/string tokens.
 		{"<<<<<<<", cConflict},
@@ -280,7 +280,7 @@ func TestConflictTokensGo(t *testing.T) {
 		}
 	}
 
-	// The bytes just past the diff prefixes are code again, not apparatus.
+	// The bytes just past the diff prefixes are code again, not markers.
 	for _, substr := range []string{"-\tfmt", "+\tfmt"} {
 		off := bytes.Index(materializedGo, []byte(substr))
 		if got := classAt(uint32(off)+1, toks); got == cConflict {
@@ -337,7 +337,7 @@ func TestConflictTokensMarkdown(t *testing.T) {
 		at     uint32 // offset into the substring to probe
 		want   tokenClass
 	}{
-		{"+# HEAD", 0, cConflict}, // the prefix byte stays apparatus...
+		{"+# HEAD", 0, cConflict}, // the prefix byte stays cConflict...
 		{"+# HEAD", 1, cKeyword},  // ...and the heading keeps its color
 		{"+# HEAD", 3, cKeyword},
 		{"+```", 0, cConflict},

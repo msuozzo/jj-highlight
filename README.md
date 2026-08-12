@@ -71,6 +71,7 @@ Set syntax colors in your jj config. The defaults are:
 "syntax emphasis" = { italic = true }
 "syntax strong"   = { bold = true }
 "syntax conflict" = { fg = "bright black" }
+"syntax conflict removed" = { bg = "#5a1e1e" }
 "syntax added"    = { bg = "#1e5a2d" }
 "syntax removed"  = { fg = "red", underline = true }
 "syntax gutter"   = { fg = "bright black", dim = true }

@@ -325,9 +325,10 @@ type token struct {
 }
 
 type Highlighter struct {
-	parser   *bonsai.Parser
-	newToks  []token
-	newLines []int // 1-based, newLines[k] = byte offset of line k's first byte
+	parser     *bonsai.Parser
+	newToks    []token
+	newLines   []int // 1-based, newLines[k] = byte offset of line k's first byte
+	conflicted bool  // the new side contains materialized conflict regions
 }
 
 // newHighlighter parses the file's contents for syntax context.
@@ -344,6 +345,7 @@ func newHighlighter(path string, newSrc []byte) *Highlighter {
 		// plus junk tokens from the marker lines), so conflicted content is
 		// tokenized side-by-side instead. See conflict.go.
 		if lines, versions := scanConflicts(newSrc); lines != nil {
+			h.conflicted = true
 			h.newToks = collectConflictTokens(h.parser, newSrc, lines, versions)
 		} else if root, err := h.parser.Parse(newSrc); err == nil {
 			h.newToks = collectTokens(root, newSrc)
@@ -465,6 +467,23 @@ func renderLine(w io.Writer, line *DiffLine, h *Highlighter, t Theme, startCol i
 	io.WriteString(w, gutterStyle.ANSI())
 	io.WriteString(w, line.Gutter)
 	io.WriteString(w, gutterStyle.Reset())
+
+	// While the new side is still conflicted, an old-side-only marker line
+	// is a relabeled marker, not removed content, so it takes the Conflict
+	// style with the ConflictRemoved BG as the removed cue, mirroring the
+	// Added BG on new-side markers. When the new side is clean the conflict
+	// itself was removed, so its markers keep the plain removed style.
+	if h.conflicted && oldMarkerLine(line) {
+		io.WriteString(w, t.ConflictRemoved.ANSI())
+		io.WriteString(w, t.Conflict.ANSI())
+		for _, span := range line.Spans {
+			io.WriteString(w, span.Text)
+		}
+		io.WriteString(w, t.Conflict.Reset())
+		io.WriteString(w, t.ConflictRemoved.Reset())
+		io.WriteString(w, "\x1b[0m\n")
+		return startCol
+	}
 
 	// The new-side line numbers index the fetched new-revision file, since
 	// diffMode fetches the same revision jj diffed. Removed lines are not

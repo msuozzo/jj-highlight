@@ -73,6 +73,26 @@ func markerRun(line []byte) (byte, int) {
 	return c, n
 }
 
+// oldMarkerLine reports whether a display line looks like an old-side-only
+// marker line: every span removed and the reassembled text opening with a
+// marker-shaped run. The old side is never fetched, so this is shape
+// detection, not region validation. Callers gate on the new side still
+// being conflicted to limit the false-positive surface.
+func oldMarkerLine(line *DiffLine) bool {
+	if line.NewNo != 0 || len(line.Spans) == 0 {
+		return false
+	}
+	var b strings.Builder
+	for _, s := range line.Spans {
+		if s.Kind != KOld {
+			return false
+		}
+		b.WriteString(s.Text)
+	}
+	_, n := markerRun([]byte(b.String()))
+	return n >= minMarkerLen
+}
+
 type lineSpan struct{ start, end int } // byte offsets, end exclusive of '\n'
 
 func splitLineSpans(src []byte) []lineSpan {
@@ -326,8 +346,8 @@ func collectConflictTokens(parser *bonsai.Parser, src []byte, lines []conflictLi
 			toks = appendContentToken(toks, clipToCanonical(tk, lines, li, v), lines, li)
 		}
 	}
-	// Fixed conflict-apparatus color for marker/label lines and the 1-byte
-	// diff prefixes.
+	// Fixed conflict color for marker/label lines and the 1-byte diff
+	// prefixes.
 	for _, cl := range lines {
 		if cl.kind == kindMarker && cl.span.end > cl.span.start {
 			toks = append(toks, token{uint32(cl.span.start), uint32(cl.span.end), cConflict})
