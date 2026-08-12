@@ -63,8 +63,8 @@ func (f *Fetches) wait(path string) []byte {
 }
 
 // jjFileShow returns a file's contents at rev for diff parse context,
-// forwarding the globals in fetchFlags (-R, --at-operation, --config) so
-// the content matches the diff. Its relativity depends on the format
+// forwarding the globals collected by parsedArgs.fetchFlags so the content
+// matches the diff. Its relativity depends on the format
 // (color-words is cwd-relative, git is workspace-root-relative), encoded by
 // jjFileset.
 func jjFileShow(fetchFlags []string, rev, path string, git bool) []byte {

@@ -166,6 +166,9 @@ func (p parsedArgs) fetchFlags() []string {
 	for _, v := range p.allVals("--config-file") {
 		out = append(out, "--config-file", v)
 	}
+	if p.has("--ignore-working-copy") {
+		out = append(out, "--ignore-working-copy")
+	}
 	return out
 }
 
