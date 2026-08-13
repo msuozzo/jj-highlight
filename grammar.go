@@ -83,7 +83,7 @@ func parserConstructor(path string) func() *bonsai.Parser {
 // shell scripts inside RUN, CMD, and ENTRYPOINT instructions.
 func newDockerfileWithBash() *bonsai.Parser {
 	return bonsaidockerfile.NewParser().With(bonsai.SubParser{
-		Match:  func(n *bonsai.Node) bool { return n.Type == "shell_command" },
+		Match:  func(n *bonsai.Node) bool { return n.Kind == bonsaidockerfile.KindShellCommand },
 		Parser: bonsaibash.NewParser(),
 	})
 }

@@ -30,17 +30,17 @@ const (
 	cFixme    // FIXME / XXX / HACK / BUG label opening a comment
 )
 
-// classifyContainer covers whole-range node types where we want the
+// classifyContainer covers whole-range node kinds where we want the
 // color applied across the entire span, rather than per leaf. For
 // strings and comments that means quotes and `//` / `/*` markers stay
 // in the same color. For markdown that means headings and code blocks
 // read as solid blocks of color. Returning non-cNone tells the
 // collector to emit one token and skip recursion into children.
-func classifyContainer(typ string, named bool) tokenClass {
+func classifyContainer(kind string, named bool) tokenClass {
 	if !named {
 		return cNone
 	}
-	switch typ {
+	switch kind {
 	// Strings. Character literals are containers rather than leaves so
 	// the quotes stay colored with the character (C's inner `character`
 	// leaf, Rust's `char_literal`, Java's `character_literal`).
@@ -121,7 +121,7 @@ func classifyContainer(typ string, named bool) tokenClass {
 		"boolean_type", "predefined_type":
 		return cType
 	}
-	if strings.HasSuffix(typ, "_string") || strings.HasSuffix(typ, "_string_literal") {
+	if strings.HasSuffix(kind, "_string") || strings.HasSuffix(kind, "_string_literal") {
 		return cString
 	}
 	return cNone
@@ -130,21 +130,21 @@ func classifyContainer(typ string, named bool) tokenClass {
 // classify maps a leaf tree-sitter node to a token class. One
 // classifier handles every grammar: we lump synonyms across tree-
 // sitter-go / -python / -markdown / -yaml / -bash / -dockerfile /
-// -gotemplate node-type names, and treat any all-letter anonymous
+// -gotemplate node-kind names, and treat any all-letter anonymous
 // token as a keyword. The all-letter check covers both lowercase
 // (Go's `func`, Python's `def`) and uppercase (Dockerfile's `FROM`,
 // `RUN`) without per-language enumeration.
-func classify(typ string, named bool) tokenClass {
+func classify(kind string, named bool) tokenClass {
 	if !named {
 		// C spells its preprocessor directives `#include`, `#define`,
 		// and so on. Every other grammar's `#` token is punctuation
 		// followed by a non-letter, so it still falls through.
-		if t := strings.TrimPrefix(typ, "#"); len(t) >= 2 && isAllAlpha(t) {
+		if t := strings.TrimPrefix(kind, "#"); len(t) >= 2 && isAllAlpha(t) {
 			return cKeyword
 		}
 		return cNone
 	}
-	switch typ {
+	switch kind {
 	case "true", "false", "none", "nil":
 		return cNumber
 	case "number":
@@ -224,8 +224,8 @@ func classify(typ string, named bool) tokenClass {
 	case "simple_symbol", "delimited_symbol":
 		return cString
 	}
-	if strings.Contains(typ, "integer") || strings.Contains(typ, "int_literal") ||
-		strings.Contains(typ, "float_literal") || typ == "float" || typ == "number" {
+	if strings.Contains(kind, "integer") || strings.Contains(kind, "int_literal") ||
+		strings.Contains(kind, "float_literal") || kind == "float" || kind == "number" {
 		return cNumber
 	}
 	return cNone
@@ -242,15 +242,15 @@ func isAllAlpha(s string) bool {
 }
 
 // classifyContext classifies nodes whose color depends on their position
-// in the tree, not the node type alone. A non-cNone result means "emit
+// in the tree, not the node kind alone. A non-cNone result means "emit
 // one token for the whole range and skip the children." Checked before
 // classifyContainer so structural rules win over type-name rules.
 func classifyContext(n *bonsai.Node) tokenClass {
 	if !n.Named {
 		return cNone
 	}
-	parentIs := func(typ string) bool { return n.Parent != nil && n.Parent.Type == typ }
-	switch n.Type {
+	parentIs := func(kind string) bool { return n.Parent != nil && n.Parent.Kind == kind }
+	switch n.Kind {
 	// YAML plain_scalar: the block grammar uses it for both keys
 	// and values (and for sequence elements, top-level scalars,
 	// etc.). The parent flow_node carries Field == "key" only for
@@ -290,7 +290,7 @@ func classifyContext(n *bonsai.Node) tokenClass {
 		// HCL rule needs the grandparent to tell them apart. Rust
 		// attribute names stay default, like Python decorators.
 		case parentIs("attribute"):
-			if gp := n.Parent.Parent; gp != nil && gp.Type == "attribute_item" {
+			if gp := n.Parent.Parent; gp != nil && gp.Kind == "attribute_item" {
 				return cNone
 			}
 			return cField
@@ -300,7 +300,7 @@ func classifyContext(n *bonsai.Node) tokenClass {
 	case "string_lit":
 		if parentIs("block") {
 			for _, c := range n.Parent.Children {
-				if c.Type == "string_lit" {
+				if c.Kind == "string_lit" {
 					if c == n {
 						return cType
 					}
@@ -370,7 +370,7 @@ func collectTokens(root *bonsai.Node, src []byte) []token {
 		// Whole-range container? Emit once for the full node and skip
 		// descent. This is how strings keep their quotes colored and
 		// block comments stay solid across multiple lines.
-		if c := classifyContainer(n.Type, n.Named); c != cNone {
+		if c := classifyContainer(n.Kind, n.Named); c != cNone {
 			// A comment opening with TODO, FIXME, and friends splits so the
 			// label colors apart from the message. See comment.go.
 			if c == cComment {
@@ -381,7 +381,7 @@ func collectTokens(root *bonsai.Node, src []byte) []token {
 			return
 		}
 		if len(n.Children) == 0 {
-			if c := classify(n.Type, n.Named); c != cNone {
+			if c := classify(n.Kind, n.Named); c != cNone {
 				toks = append(toks, token{n.StartByte, n.EndByte, c})
 			}
 			return
