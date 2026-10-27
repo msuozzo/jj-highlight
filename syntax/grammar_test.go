@@ -109,7 +109,7 @@ func TestContextualTokenClasses(t *testing.T) {
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := []byte(tc.src)
-			toks, _ := Highlight(tc.path, src)
+			toks, _ := Classify(tc.path, src)
 			if toks == nil {
 				t.Fatalf("no tokens for %s", tc.path)
 			}
@@ -136,7 +136,7 @@ func TestTerraformTokenClasses(t *testing.T) {
   tags   = { env = join("-", ["a"]) }
 }
 `)
-	toks, _ := Highlight("main.tf", src)
+	toks, _ := Classify("main.tf", src)
 	if toks == nil {
 		t.Fatal("expected parse tokens for Terraform source")
 	}

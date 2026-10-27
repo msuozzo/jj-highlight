@@ -12,11 +12,11 @@ type Token struct {
 	Class      Class
 }
 
-// Highlight parses src as the language path names and returns its tokens,
+// Classify parses src as the language path names and returns its tokens,
 // sorted and non-overlapping. conflicted reports that src holds jj conflict
 // markers, whose sides are parsed separately. Unsupported paths and failed
 // parses yield no tokens.
-func Highlight(path string, src []byte) (toks []Token, conflicted bool) {
+func Classify(path string, src []byte) (toks []Token, conflicted bool) {
 	ctor := parserConstructor(path)
 	if ctor == nil {
 		return nil, false

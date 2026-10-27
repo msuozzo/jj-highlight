@@ -24,7 +24,7 @@ func newHighlighter(path string, newSrc []byte) *Highlighter {
 	if newSrc == nil || !syntax.Supported(path) {
 		return h
 	}
-	h.newToks, h.conflicted = syntax.Highlight(path, newSrc)
+	h.newToks, h.conflicted = syntax.Classify(path, newSrc)
 	h.newLines = lineOffsets(newSrc)
 	return h
 }

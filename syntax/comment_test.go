@@ -21,7 +21,7 @@ func TestCommentMarkerClasses(t *testing.T) {
 /* NOTE: inside a block comment */
 const s = "TODO: in a string"
 `)
-	toks, _ := Highlight("x.go", src)
+	toks, _ := Classify("x.go", src)
 	if toks == nil {
 		t.Fatal("expected parse tokens for Go source")
 	}
@@ -60,7 +60,7 @@ const s = "TODO: in a string"
 // well. This is the reason matching is uppercase-only: prose says "note".
 func TestCommentMarkerInMarkdownBlockQuote(t *testing.T) {
 	src := []byte("# Title\n\n> NOTE: the quote is a comment\n\nPlease note this is not.\n")
-	toks, _ := Highlight("x.md", src)
+	toks, _ := Classify("x.md", src)
 	if toks == nil {
 		t.Fatal("expected parse tokens for Markdown source")
 	}
