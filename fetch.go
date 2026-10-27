@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/msuozzo/jj-highlight/syntax"
 )
 
 // Fetches concurrently runs per-file `jj file show` to get file contents.
@@ -30,7 +32,7 @@ func newFetches(newRev string, fetchFlags []string, git bool) *Fetches {
 // - Safe to call from the parser goroutine while wait runs on another.
 // - Idempotent per path.
 func (f *Fetches) start(file *FileDiff) {
-	if file.Removed || !canHighlight(file.Path) {
+	if file.Removed || !syntax.Supported(file.Path) {
 		return
 	}
 	f.mu.Lock()

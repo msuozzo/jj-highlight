@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/msuozzo/jj-highlight/syntax"
 )
 
 // Style is one ANSI style: optional FG, BG, and attribute flags.
@@ -147,29 +149,29 @@ type Theme struct {
 	Removed         Style // replaces KOld styling entirely
 }
 
-func (t Theme) styleFor(c tokenClass) Style {
+func (t Theme) styleFor(c syntax.Class) Style {
 	switch c {
-	case cComment:
+	case syntax.Comment:
 		return t.Comment
-	case cTodo:
+	case syntax.Todo:
 		return t.Todo
-	case cFixme:
+	case syntax.Fixme:
 		return t.Fixme
-	case cString:
+	case syntax.String:
 		return t.String
-	case cNumber:
+	case syntax.Number:
 		return t.Number
-	case cKeyword:
+	case syntax.Keyword:
 		return t.Keyword
-	case cType:
+	case syntax.Type:
 		return t.Type
-	case cField:
+	case syntax.Field:
 		return t.Field
-	case cEmphasis:
+	case syntax.Emphasis:
 		return t.Emphasis
-	case cStrong:
+	case syntax.Strong:
 		return t.Strong
-	case cConflict:
+	case syntax.Conflict:
 		return t.Conflict
 	}
 	return Style{}

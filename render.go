@@ -5,328 +5,14 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sort"
-	"strings"
 
-	"github.com/msuozzo/bonsai"
+	"github.com/msuozzo/jj-highlight/syntax"
 )
-
-// --- token classification --------------------------------------------------
-
-type tokenClass int
-
-const (
-	cNone tokenClass = iota
-	cComment
-	cString
-	cNumber
-	cKeyword
-	cType
-	cField
-	cEmphasis // markdown *italic* and _italic_
-	cStrong   // markdown **bold** and __bold__
-	cConflict // jj conflict markers, labels, and diff prefixes
-	cTodo     // TODO / NOTE label opening a comment
-	cFixme    // FIXME / XXX / HACK / BUG label opening a comment
-)
-
-// classifyContainer covers whole-range node kinds where we want the
-// color applied across the entire span, rather than per leaf. For
-// strings and comments that means quotes and `//` / `/*` markers stay
-// in the same color. For markdown that means headings and code blocks
-// read as solid blocks of color. Returning non-cNone tells the
-// collector to emit one token and skip recursion into children.
-func classifyContainer(kind string, named bool) tokenClass {
-	if !named {
-		return cNone
-	}
-	switch kind {
-	// Strings. Character literals are containers rather than leaves so
-	// the quotes stay colored with the character (C's inner `character`
-	// leaf, Rust's `char_literal`, Java's `character_literal`).
-	case "string", "string_literal", "raw_string_literal",
-		"interpreted_string_literal", "byte_string_literal",
-		"rune_literal", "concatenated_string", "string_lit",
-		"char_literal", "character_literal":
-		return cString
-	// Comments.
-	case "comment", "line_comment", "block_comment":
-		return cComment
-	// Markdown block-grammar containers.
-	case "atx_heading", "setext_heading":
-		return cKeyword
-	case "fenced_code_block", "indented_code_block":
-		return cString
-	case "block_quote":
-		return cComment
-	case "link_reference_definition":
-		return cType
-	// Markdown GFM tables. Header row gets keyword color to stand out
-	// over body rows. The `|---|---|` delimiter row reads as structural
-	// noise, so it gets comment color. Body rows stay default.
-	case "pipe_table_header":
-		return cKeyword
-	case "pipe_table_delimiter_row":
-		return cComment
-	// Markdown inline-grammar containers. The inline parser fires
-	// inside `inline` leaves of the block tree (see collectTokens),
-	// so these only apply when we have a working inline parser.
-	case "code_span":
-		return cString
-	case "inline_link", "image", "link",
-		"shortcut_link", "full_reference_link", "collapsed_reference_link",
-		"uri_autolink", "email_autolink":
-		return cField
-	case "emphasis":
-		return cEmphasis
-	case "strong_emphasis":
-		return cStrong
-	// YAML quoted and block scalars. plain_scalar (unquoted) is
-	// deliberately left alone since it covers both keys and values.
-	case "double_quote_scalar", "single_quote_scalar", "block_scalar":
-		return cString
-	// Dockerfile containers. JSON strings within instructions
-	// (e.g. CMD ["./app"]) get the string color. `expansion` is the
-	// ${VAR} / $VAR form and reads as a field reference.
-	case "json_string":
-		return cString
-	case "expansion":
-		return cField
-	// Go template field references (.Name, .User.Name). Whole-range
-	// classification keeps the leading `.` colored alongside the
-	// identifier. Action keywords (if, range, define, end) come
-	// through the lowercase-keyword path automatically.
-	case "field":
-		return cField
-	// Bash. simple_expansion is `$VAR`. command_name is the verb at the
-	// start of a command (echo, cat, grep). The `string` container
-	// already covers double-quoted strings via the strings group above.
-	case "simple_expansion":
-		return cField
-	case "command_name":
-		return cType
-	// Terraform/HCL. quoted_template (an interpolated string) is
-	// deliberately absent so `${...}` keeps expression coloring. bool_lit
-	// wraps an anonymous true/false that would otherwise classify as a
-	// keyword.
-	case "heredoc_start":
-		return cString
-	case "bool_lit", "null_lit":
-		return cNumber
-	// Builtin types in Java and TypeScript. These wrap an anonymous
-	// token, so without a container rule they would fall to the
-	// all-letter keyword path instead of matching the type color that
-	// C and Rust primitives get.
-	case "void_type", "integral_type", "floating_point_type",
-		"boolean_type", "predefined_type":
-		return cType
-	}
-	if strings.HasSuffix(kind, "_string") || strings.HasSuffix(kind, "_string_literal") {
-		return cString
-	}
-	return cNone
-}
-
-// classify maps a leaf tree-sitter node to a token class. One
-// classifier handles every grammar: we lump synonyms across tree-
-// sitter-go / -python / -markdown / -yaml / -bash / -dockerfile /
-// -gotemplate node-kind names, and treat any all-letter anonymous
-// token as a keyword. The all-letter check covers both lowercase
-// (Go's `func`, Python's `def`) and uppercase (Dockerfile's `FROM`,
-// `RUN`) without per-language enumeration.
-func classify(kind string, named bool) tokenClass {
-	if !named {
-		// C spells its preprocessor directives `#include`, `#define`,
-		// and so on. Every other grammar's `#` token is punctuation
-		// followed by a non-letter, so it still falls through.
-		if t := strings.TrimPrefix(kind, "#"); len(t) >= 2 && isAllAlpha(t) {
-			return cKeyword
-		}
-		return cNone
-	}
-	switch kind {
-	case "true", "false", "none", "nil":
-		return cNumber
-	case "number":
-		return cNumber
-	case "type_identifier", "package_identifier", "primitive_type":
-		return cType
-	case "field_identifier":
-		return cField
-	// Markdown leaves. The block grammar emits these as standalone
-	// tokens that wouldn't be reached by the container path.
-	case "thematic_break",
-		"list_marker_minus", "list_marker_plus", "list_marker_star",
-		"list_marker_dot", "list_marker_parenthesis":
-		return cKeyword
-	case "info_string", "language":
-		return cType
-	// YAML leaves. Quoted-string scalars are handled as containers
-	// above. Unquoted text (the inner `string_scalar` leaves that the
-	// block grammar emits for both keys and values) is left default
-	// so structure stays visible against the noise. Only the typed
-	// scalars that read like literals get a color.
-	case "integer_scalar", "float_scalar", "boolean_scalar", "null_scalar":
-		return cNumber
-	case "anchor_name", "alias_name":
-		return cField
-	// Dockerfile leaves. Image names / aliases read like types,
-	// paths and unquoted strings like literals, and ports like
-	// numbers. Variable references get the field color so they pop.
-	case "image_name", "image_alias":
-		return cType
-	case "path", "unquoted_string":
-		return cString
-	case "expose_port":
-		return cNumber
-	case "variable":
-		return cField
-	// Bash leaves. variable_name is the LHS of `NAME=value`, the
-	// content inside ${...}, etc. test_operator covers `-f`, `-d`,
-	// `==`, etc. inside [[ ... ]]. Bare `word` and `string_content`
-	// stay default so command arguments aren't recolored.
-	case "variable_name":
-		return cField
-	case "test_operator":
-		return cKeyword
-	// Terraform/HCL leaves, reached inside interpolated strings and
-	// heredocs. The `${`/`%{`/`}` frames get field color so embedded
-	// expressions pop out of the surrounding string.
-	case "template_literal", "quoted_template_start", "quoted_template_end",
-		"heredoc_identifier":
-		return cString
-	case "template_interpolation_start", "template_interpolation_end",
-		"template_directive_start", "template_directive_end":
-		return cField
-	case "numeric_lit":
-		return cNumber
-	// C, Kotlin, and Groovy spell their numbers this way, which the
-	// substring fallback below doesn't reach.
-	case "number_literal":
-		return cNumber
-	// The receiver keywords parse as named nodes, so the anonymous
-	// all-letter keyword path never sees them.
-	case "this", "self", "super", "mutable_specifier":
-		return cKeyword
-	// JavaScript / TypeScript / TSX member names, matching Go's
-	// field_identifier. Covers member access, class members, object
-	// literal keys, and JSX attribute names.
-	case "property_identifier", "private_property_identifier",
-		"shorthand_property_identifier", "shorthand_property_identifier_pattern":
-		return cField
-	// Ruby. Constants (which include class and module names) read as
-	// types; the sigil variables and hash keys read as fields. A symbol
-	// is an interned string literal, so it takes the string color.
-	case "constant":
-		return cType
-	case "instance_variable", "class_variable", "global_variable", "hash_key_symbol":
-		return cField
-	case "simple_symbol", "delimited_symbol":
-		return cString
-	}
-	if strings.Contains(kind, "integer") || strings.Contains(kind, "int_literal") ||
-		strings.Contains(kind, "float_literal") || kind == "float" || kind == "number" {
-		return cNumber
-	}
-	return cNone
-}
-
-func isAllAlpha(s string) bool {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-			return false
-		}
-	}
-	return true
-}
-
-// classifyContext classifies nodes whose color depends on their position
-// in the tree, not the node kind alone. A non-cNone result means "emit
-// one token for the whole range and skip the children." Checked before
-// classifyContainer so structural rules win over type-name rules.
-func classifyContext(n *bonsai.Node) tokenClass {
-	if !n.Named {
-		return cNone
-	}
-	parentIs := func(kind string) bool { return n.Parent != nil && n.Parent.Kind == kind }
-	switch n.Kind {
-	// YAML plain_scalar: the block grammar uses it for both keys
-	// and values (and for sequence elements, top-level scalars,
-	// etc.). The parent flow_node carries Field == "key" only for
-	// the key half of a block_mapping_pair. Anything else is a
-	// value and reads like a string.
-	case "plain_scalar":
-		if n.Parent == nil || n.Parent.Field != "key" {
-			return cString
-		}
-	// Terraform/HCL uses one identifier node for block types, attribute
-	// names, and function names, so position decides the color. The
-	// rules below it cover the other grammars that reuse the bare
-	// identifier node for a named role.
-	case "identifier":
-		switch {
-		// Java, JavaScript, and Python type declarations, matching Go's
-		// type_identifier.
-		case n.Field == "name" && (parentIs("class_declaration") ||
-			parentIs("class_definition")):
-			return cType
-		// Ruby is method calls all the way down, so only receiverless
-		// ones get the color. That covers DSL verbs (`gem`, `task`,
-		// `attr_reader`) while leaving `foo.bar.baz` chains alone.
-		case n.Field == "method" && parentIs("call") &&
-			n.Parent.ChildByField("receiver") == nil:
-			return cType
-		}
-		if n.Field != "" {
-			return cNone
-		}
-		switch {
-		case parentIs("block"):
-			return cKeyword
-		case parentIs("function_call"):
-			return cType
-		// Rust names the inside of `#[...]` an `attribute` too, so the
-		// HCL rule needs the grandparent to tell them apart. Rust
-		// attribute names stay default, like Python decorators.
-		case parentIs("attribute"):
-			if gp := n.Parent.Parent; gp != nil && gp.Kind == "attribute_item" {
-				return cNone
-			}
-			return cField
-		}
-	// HCL block labels: the first names a type (`resource
-	// "aws_s3_bucket" "b"`), later ones fall through to plain string.
-	case "string_lit":
-		if parentIs("block") {
-			for _, c := range n.Parent.Children {
-				if c.Kind == "string_lit" {
-					if c == n {
-						return cType
-					}
-					break
-				}
-			}
-		}
-	// HCL object keys ({ env = ... }) match the attribute-name color.
-	case "expression":
-		if n.Field == "key" && parentIs("object_elem") {
-			return cField
-		}
-	}
-	return cNone
-}
 
 // --- highlighter -----------------------------------------------------------
 
-type token struct {
-	start, end uint32
-	class      tokenClass
-}
-
 type Highlighter struct {
-	parser     *bonsai.Parser
-	newToks    []token
+	newToks    []syntax.Token
 	newLines   []int // 1-based, newLines[k] = byte offset of line k's first byte
 	conflicted bool  // the new side contains materialized conflict regions
 }
@@ -335,64 +21,12 @@ type Highlighter struct {
 // Only new source gets syntax highlights (see emitRemoved).
 func newHighlighter(path string, newSrc []byte) *Highlighter {
 	h := &Highlighter{}
-	ctor := parserConstructor(path)
-	if ctor == nil {
+	if newSrc == nil || !syntax.Supported(path) {
 		return h
 	}
-	h.parser = ctor()
-	if newSrc != nil {
-		// Materialized conflicts would wreck a direct parse (ERROR recovery
-		// plus junk tokens from the marker lines), so conflicted content is
-		// tokenized side-by-side instead. See conflict.go.
-		if lines, versions := scanConflicts(newSrc); lines != nil {
-			h.conflicted = true
-			h.newToks = collectConflictTokens(h.parser, newSrc, lines, versions)
-		} else if root, err := h.parser.Parse(newSrc); err == nil {
-			h.newToks = collectTokens(root, newSrc)
-		}
-		h.newLines = lineOffsets(newSrc)
-	}
+	h.newToks, h.conflicted = syntax.Highlight(path, newSrc)
+	h.newLines = lineOffsets(newSrc)
 	return h
-}
-
-// collectTokens walks the parse tree and produces a sorted, non-
-// overlapping list of (byte range, class) tokens. Injection (e.g.
-// markdown's block-and-inline split) has already been resolved by
-// bonsai, so this function sees one unified tree.
-func collectTokens(root *bonsai.Node, src []byte) []token {
-	var toks []token
-	var visit func(n *bonsai.Node)
-	visit = func(n *bonsai.Node) {
-		if c := classifyContext(n); c != cNone {
-			toks = append(toks, token{n.StartByte, n.EndByte, c})
-			return
-		}
-		// Whole-range container? Emit once for the full node and skip
-		// descent. This is how strings keep their quotes colored and
-		// block comments stay solid across multiple lines.
-		if c := classifyContainer(n.Kind, n.Named); c != cNone {
-			// A comment opening with TODO, FIXME, and friends splits so the
-			// label colors apart from the message. See comment.go.
-			if c == cComment {
-				toks = append(toks, splitCommentMarkers(src, n.StartByte, n.EndByte)...)
-				return
-			}
-			toks = append(toks, token{n.StartByte, n.EndByte, c})
-			return
-		}
-		if len(n.Children) == 0 {
-			if c := classify(n.Kind, n.Named); c != cNone {
-				toks = append(toks, token{n.StartByte, n.EndByte, c})
-			}
-			return
-		}
-		for _, ch := range n.Children {
-			visit(ch)
-		}
-	}
-	visit(root)
-	sort.Slice(toks, func(i, j int) bool { return toks[i].start < toks[j].start })
-	return toks
 }
 
 func lineOffsets(src []byte) []int {
@@ -403,22 +37,6 @@ func lineOffsets(src []byte) []int {
 		}
 	}
 	return out
-}
-
-func classAt(off uint32, toks []token) tokenClass {
-	lo, hi := 0, len(toks)
-	for lo < hi {
-		mid := (lo + hi) / 2
-		if toks[mid].end <= off {
-			lo = mid + 1
-		} else {
-			hi = mid
-		}
-	}
-	if lo < len(toks) && toks[lo].start <= off && off < toks[lo].end {
-		return toks[lo].class
-	}
-	return cNone
 }
 
 // --- rendering -------------------------------------------------------------
@@ -536,7 +154,7 @@ func emitRemoved(w io.Writer, text string, t Theme) {
 // wrap also set FG the wrap-FG would be lost at the first per-class
 // transition. The default theme honors this. Custom themes mixing FG+BG on
 // the Added key, or setting BG on a per-class key, may show artifacts.
-func emitHighlighted(w io.Writer, text string, toks []token, base int, t Theme, wrap Style) {
+func emitHighlighted(w io.Writer, text string, toks []syntax.Token, base int, t Theme, wrap Style) {
 	if !wrap.Empty() {
 		io.WriteString(w, wrap.ANSI())
 	}
@@ -547,10 +165,10 @@ func emitHighlighted(w io.Writer, text string, toks []token, base int, t Theme, 
 		}
 		return
 	}
-	cur := tokenClass(-1)
+	cur := syntax.Class(-1)
 	var curStyle Style
 	for i := range len(text) {
-		cls := classAt(uint32(base+i), toks)
+		cls := syntax.ClassAt(uint32(base+i), toks)
 		if cls != cur {
 			if !curStyle.Empty() {
 				io.WriteString(w, curStyle.Reset())

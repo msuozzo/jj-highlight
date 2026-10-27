@@ -1,4 +1,4 @@
-package main
+package syntax
 
 import "strings"
 
@@ -10,10 +10,10 @@ import "strings"
 // comment node for the whole run, so the label has to come from scanning the
 // comment's own bytes.
 //
-// collectTokens routes every cComment container through splitCommentMarkers,
+// collectTokens routes every Comment container through splitCommentMarkers,
 // which turns the one token into three (opener, label, remainder). Keying off
 // the class rather than a node type means every grammar we dispatch picks
-// this up at once, and markdown block quotes (also cComment) come along with
+// this up at once, and markdown block quotes (also Comment) come along with
 // them.
 //
 // Matching is narrow on purpose, since a false positive recolors ordinary
@@ -30,13 +30,13 @@ import "strings"
 
 // commentMarkers splits the labels across two classes: TODO and NOTE are
 // informational, the rest report something broken.
-var commentMarkers = map[string]tokenClass{
-	"TODO":  cTodo,
-	"NOTE":  cTodo,
-	"FIXME": cFixme,
-	"XXX":   cFixme,
-	"HACK":  cFixme,
-	"BUG":   cFixme,
+var commentMarkers = map[string]Class{
+	"TODO":  Todo,
+	"NOTE":  Todo,
+	"FIXME": Fixme,
+	"XXX":   Fixme,
+	"HACK":  Fixme,
+	"BUG":   Fixme,
 }
 
 // commentOpeners are the bytes a comment's own syntax puts ahead of its
@@ -46,10 +46,10 @@ const commentOpeners = "/#*!>"
 
 // splitCommentMarkers returns the tokens covering the comment occupying
 // src[start:end]. A comment whose body opens with a marker splits into three
-// (opener, label, remainder), anything else stays the one cComment token.
-// Output is ordered and non-overlapping, as classAt requires.
-func splitCommentMarkers(src []byte, start, end uint32) []token {
-	whole := []token{{start, end, cComment}}
+// (opener, label, remainder), anything else stays the one Comment token.
+// Output is ordered and non-overlapping, as ClassAt requires.
+func splitCommentMarkers(src []byte, start, end uint32) []Token {
+	whole := []Token{{start, end, Comment}}
 	if start >= end || int(end) > len(src) {
 		return whole
 	}
@@ -79,13 +79,13 @@ func splitCommentMarkers(src []byte, start, end uint32) []token {
 	if label < end && src[label] == ':' {
 		label++
 	}
-	toks := make([]token, 0, 3)
+	toks := make([]Token, 0, 3)
 	if body > start {
-		toks = append(toks, token{start, body, cComment})
+		toks = append(toks, Token{start, body, Comment})
 	}
-	toks = append(toks, token{body, label, class})
+	toks = append(toks, Token{body, label, class})
 	if label < end {
-		toks = append(toks, token{label, end, cComment})
+		toks = append(toks, Token{label, end, Comment})
 	}
 	return toks
 }

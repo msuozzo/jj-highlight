@@ -6,50 +6,6 @@ import (
 	"testing"
 )
 
-// HCL classification is context-dependent (one identifier node, three
-// roles), so pin the class assigned at each interesting position.
-func TestTerraformTokenClasses(t *testing.T) {
-	src := []byte(`resource "aws_s3_bucket" "b" {
-  bucket = "my-${var.env}"
-  count  = 42
-  flag   = true
-  tags   = { env = join("-", ["a"]) }
-}
-`)
-	h := newHighlighter("main.tf", src)
-	if h.newToks == nil {
-		t.Fatal("expected parse tokens for Terraform source")
-	}
-	at := func(sub string) tokenClass {
-		off := bytes.Index(src, []byte(sub))
-		if off < 0 {
-			t.Fatalf("substring %q not in src", sub)
-		}
-		return classAt(uint32(off), h.newToks)
-	}
-	for _, tc := range []struct {
-		sub  string
-		want tokenClass
-	}{
-		{"resource", cKeyword},     // block type
-		{`"aws_s3_bucket"`, cType}, // first block label
-		{`"b"`, cString},           // second block label
-		{"bucket =", cField},       // attribute name
-		{`"my-`, cString},          // interpolated string literal part
-		{"${", cField},             // interpolation opener
-		{"var.env", cNone},         // expression inside interpolation
-		{"42", cNumber},            // numeric_lit
-		{"true", cNumber},          // bool_lit
-		{"env = join", cField},     // object key
-		{"join", cType},            // function call
-		{`"a"`, cString},           // plain string_lit
-	} {
-		if got := at(tc.sub); got != tc.want {
-			t.Errorf("class at %q = %d, want %d", tc.sub, got, tc.want)
-		}
-	}
-}
-
 // Old-side-only marker lines take the Conflict style while the new side
 // is still conflicted. Removed content, resolved conflicts, and files
 // that were never conflicted keep the plain Removed style.

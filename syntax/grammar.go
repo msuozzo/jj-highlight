@@ -1,4 +1,4 @@
-package main
+package syntax
 
 import (
 	"path/filepath"
@@ -22,7 +22,8 @@ import (
 	bonsaiyaml "github.com/msuozzo/bonsai/bonsai-yaml"
 )
 
-func canHighlight(path string) bool { return parserConstructor(path) != nil }
+// Supported reports whether path names a language with a grammar.
+func Supported(path string) bool { return parserConstructor(path) != nil }
 
 // parserConstructor returns the bonsai parser constructor for a file, or
 // nil if the file's name and extension match no grammar.
