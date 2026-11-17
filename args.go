@@ -152,6 +152,12 @@ func (p parsedArgs) repo() string { return p.firstVal("-R", "--repository") }
 
 // fetchFlags returns the global flags that the per-file `jj file show`
 // fetch must carry so its contents match the displayed diff.
+//
+// --ignore-working-copy is always set. The diff snapshots before it prints
+// the first header, and a fetch starts only after a header, so the fetch
+// reads that snapshot. A fetch that snapshots again can pick up later edits
+// the diff does not show, and it contends with the still-running diff for
+// the working copy.
 func (p parsedArgs) fetchFlags() []string {
 	var out []string
 	if v := p.repo(); v != "" {
@@ -166,10 +172,7 @@ func (p parsedArgs) fetchFlags() []string {
 	for _, v := range p.allVals("--config-file") {
 		out = append(out, "--config-file", v)
 	}
-	if p.has("--ignore-working-copy") {
-		out = append(out, "--ignore-working-copy")
-	}
-	return out
+	return append(out, "--ignore-working-copy")
 }
 
 // newRev returns the revision whose file contents supply syntax context.
